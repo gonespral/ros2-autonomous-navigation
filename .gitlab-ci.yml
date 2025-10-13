@@ -1,0 +1,26 @@
+stages:
+  - test
+
+.labX: &lab_commands
+  image: "image_rsp"
+  only:
+    - schedules
+  stage: test
+  script:
+    - echo "This won't be run!"
+  tags:
+    - ci_lab4
+  artifacts:
+    paths:
+      - ./artifacts
+    reports:
+      junit: artifacts/report.xml
+  cache:
+    key: $LAB
+    paths:
+      - ./cache
+
+lab4:
+  variables:
+    LAB: lab4
+  <<: *lab_commands
