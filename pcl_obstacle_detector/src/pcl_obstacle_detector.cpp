@@ -11,12 +11,18 @@ class PCLNode: public rclcpp::Node {
             this->declare_parameter("detections_topic", "/detections");
             this->declare_parameter("publish_interval_ms", 100);
             this->declare_parameter("queue_size", 1);
+            this->declare_parameter("filter_limit_l", 0.1);
+            this->declare_parameter("filter_limit_u", 3.0);
+            this->declare_parameter("segmentation_thres", 0.01);
 
-            // Declare node configuration parameters
-            std::string point_cloud_topic = this->get_parameter("point_cloud_topic").as_string();  // sensor_msgs/msg/PointCloud2
-            std::string detections_topic = this->get_parameter("detections_topic").as_string();  // vision_msgs/msg/Detection3DArray
-            int publish_interval_ms = this->get_parameter("publish_interval_ms").as_int();
-            int queue_size = this->get_parameter("queue_size").as_int();
+            // Read parameter values into class members
+            point_cloud_topic = this->get_parameter("point_cloud_topic").as_string();
+            detections_topic = this->get_parameter("detections_topic").as_string();
+            publish_interval_ms = this->get_parameter("publish_interval_ms").as_int();
+            queue_size = this->get_parameter("queue_size").as_int();
+            filter_limit_l = this->get_parameter("filter_limit_l").as_double();
+            filter_limit_u = this->get_parameter("filter_limit_u").as_double();
+            segmentation_thresh = this->get_parameter("segmentation_thresh").as_double();
 
             // Log info
             RCLCPP_INFO(this->get_logger(), "Starting node '%s'...", this->get_name());
@@ -49,19 +55,21 @@ class PCLNode: public rclcpp::Node {
         };
 
     private:
+        // Declare subscriber and publisher
         rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_point_cloud;
         rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr publisher_detections;
 
+        // Declare node configuration parameters - parameters stored as class members
+        std::string point_cloud_topic;
+        std::string detections_topic;
+        int publish_interval_ms;
+        int queue_size;
+        double filter_limit_l;
+        double filter_limit_u;
+        double segmentation_thresh;
+
         // Define callback functions
-        void callback_point_cloud(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
-            // RCLCPP_INFO(
-            //     this->get_logger(),
-            //     "Received PointCloud2: frame_id='%s', width=%u, height=%u, fields=%zu",
-            //     msg->header.frame_id.c_str(),
-            //     msg->width,
-            //     msg->height,
-            //     msg->fields.size()
-            // );
+        int callback_point_cloud(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
 
             // Declare cloud pariables
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -80,10 +88,36 @@ class PCLNode: public rclcpp::Node {
             pcl::PassThrough<pcl::PointXYZ> pass;
             pass.setInputCloud(cloud);
             pass.setFilterFieldName("z");  // filter axis
-            pass.setFilterLimits(0.1, 3.0); // keep points between 0.1m and 0.3m
+            pass.setFilterLimits(this->filter_limit_l, this->filter_limit_u); // keep points between 0.1m and 0.3m
             pass.filter(*cloud_filtered);  // store in cloud_filtered
 
             RCLCPP_INFO(this->get_logger(), "Filtered point cloud size: %zu", cloud->size());
+
+            // Ground plane removal
+            pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
+            pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
+
+            // Create the segmentation object
+            pcl::SACSegmentation<pcl::PointXYZ> seg;
+
+            // Optional
+            seg.setOptimizeCoefficients(true);
+
+            // Mandatory
+            seg.setModelType(pcl::SACMODEL_PLANE);
+            seg.setMethodType(pcl::SAC_RANSAC);
+            seg.setDistanceThreshold(0.01);
+
+            seg.setInputCloud(cloud_filtered);
+            seg.segment(*inliers, *coefficients);
+
+            if (inliers->indices.size() == 0) {
+                RCLCPP_INFO(this->get_logger(), "Could not estimate a planar model for the given dataset.\n");
+                return -1;
+            }
+
+            return 0;
+
 
         // TODO: Convert to detections later
         // vision_msgs::msg::Detection3DArray detections;
