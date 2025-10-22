@@ -21,25 +21,12 @@ class PCLNode: public rclcpp::Node {
             // Log info
             RCLCPP_INFO(this->get_logger(), "Starting node '%s'...", this->get_name());
 
-            // Define callback functions
-            auto callback_point_cloud =
-                [this](sensor_msgs::msg::PointCloud2::UniquePtr msg) -> void {
-                    RCLCPP_INFO(
-                        this->get_logger(),
-                        "Received PointCloud2: frame_id='%s', width=%u, height=%u, fields=%zu",
-                        msg->header.frame_id.c_str(),
-                        msg->width,
-                        msg->height,
-                        msg->fields.size()
-                    );
-                };
-
             // Create subscriber and publisher
             subscription_point_cloud = 
             this->create_subscription<sensor_msgs::msg::PointCloud2>(
                 point_cloud_topic, 
                 queue_size,
-                callback_point_cloud
+                std::bind(&PCLNode::callback_point_cloud, this, std::placeholders::_1) // bind is needed to create callable object, since member func has implied "this" as first arg
             );
 
             publisher_detections = 
@@ -64,6 +51,19 @@ class PCLNode: public rclcpp::Node {
     private:
         rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_point_cloud;
         rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr publisher_detections;
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+
+        // Define callback functions
+        void callback_point_cloud(sensor_msgs::msg::PointCloud2::UniquePtr msg) {
+            RCLCPP_INFO(
+                this->get_logger(),
+                "Received PointCloud2: frame_id='%s', width=%u, height=%u, fields=%zu",
+                msg->header.frame_id.c_str(),
+                msg->width,
+                msg->height,
+                msg->fields.size()
+            );
+        };
 };
 
 int main(int argc, char *argv[]){
