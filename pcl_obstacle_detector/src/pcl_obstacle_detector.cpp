@@ -13,7 +13,10 @@ class PCLNode: public rclcpp::Node {
             this->declare_parameter("queue_size", 1);
             this->declare_parameter("filter_limit_l", 0.1);
             this->declare_parameter("filter_limit_u", 3.0);
-            this->declare_parameter("segmentation_thres", 0.01);
+            this->declare_parameter("segmentation_thresh", 0.01);
+            this->declare_parameter("cluster_tolerance", 0.01);
+            this->declare_parameter("cluster_size_min", 5);
+            this->declare_parameter("cluster_size_max", 25000);
 
             // Read parameter values into class members
             point_cloud_topic = this->get_parameter("point_cloud_topic").as_string();
@@ -23,6 +26,9 @@ class PCLNode: public rclcpp::Node {
             filter_limit_l = this->get_parameter("filter_limit_l").as_double();
             filter_limit_u = this->get_parameter("filter_limit_u").as_double();
             segmentation_thresh = this->get_parameter("segmentation_thresh").as_double();
+            cluster_tolerance = this->get_parameter("cluster_tolerance").as_double();
+            cluster_size_min = this->get_parameter("cluster_size_min").as_int();
+            cluster_size_max = this->get_parameter("cluster_size_max").as_int();
 
             // Log info
             RCLCPP_INFO(this->get_logger(), "Starting node '%s'...", this->get_name());
@@ -67,6 +73,9 @@ class PCLNode: public rclcpp::Node {
         double filter_limit_l;
         double filter_limit_u;
         double segmentation_thresh;
+        double cluster_tolerance;
+        int cluster_size_min;
+        int cluster_size_max;
 
         // Define callback functions
         int callback_point_cloud(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
@@ -78,7 +87,7 @@ class PCLNode: public rclcpp::Node {
             // Convert from sensor_msgs::msg::PointCloud2 to pcl::PointCloud
             pcl::fromROSMsg(*msg, *cloud);  // msg -> cloud
 
-            RCLCPP_INFO(this->get_logger(), "Raw point cloud size: %zu", cloud->size());
+            RCLCPP_INFO(this->get_logger(), "RAW CLOUD - Raw point cloud size: %zu", cloud->size());
 
             // Remove NaN points
             std::vector<int> indices;
@@ -91,7 +100,7 @@ class PCLNode: public rclcpp::Node {
             pass.setFilterLimits(this->filter_limit_l, this->filter_limit_u); // keep points between 0.1m and 0.3m
             pass.filter(*cloud_filtered);  // store in cloud_filtered
 
-            RCLCPP_INFO(this->get_logger(), "Filtered point cloud size: %zu", cloud->size());
+            RCLCPP_INFO(this->get_logger(), "FILTERING - Filtered point cloud size: %zu", cloud->size());
 
             // Ground plane removal
             pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
@@ -116,12 +125,97 @@ class PCLNode: public rclcpp::Node {
                 return -1;
             }
 
-            return 0;
+            RCLCPP_INFO(this->get_logger(), "GROUND SEGMENTATION - Plane inliers size: %zu", inliers->indices.size());
+            
+        
+            // // Create the filtering object: downsample the dataset using a leaf size of 1cm
+            // pcl::VoxelGrid<pcl::PointXYZ> vg;
+            // vg.setInputCloud (cloud);
+            // vg.setLeafSize (0.01f, 0.01f, 0.01f);
+            // vg.filter (*cloud_filtered);
+            // std::cout << "PointCloud after filtering has: " << cloud_filtered->size ()  << " data points." << std::endl; //*
+
+            // // Create the segmentation object for the planar model and set all the parameters
+            // pcl::SACSegmentation<pcl::PointXYZ> seg;
+            // pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
+            // pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
+            // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane (new pcl::PointCloud<pcl::PointXYZ> ());
+            // pcl::PCDWriter writer;
+            // seg.setOptimizeCoefficients (true);
+            // seg.setModelType (pcl::SACMODEL_PLANE);
+            // seg.setMethodType (pcl::SAC_RANSAC);
+            // seg.setMaxIterations (100);
+            // seg.setDistanceThreshold (0.02);
+
+            // int nr_points = (int) cloud_filtered->size ();
+            // while (cloud_filtered->size () > 0.3 * nr_points)
+            // {
+            //     // Segment the largest planar component from the remaining cloud
+            //     seg.setInputCloud (cloud_filtered);
+            //     seg.segment (*inliers, *coefficients);
+            //     if (inliers->indices.size () == 0)
+            //     {
+            //     std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
+            //     break;
+            //     }
+
+            //     // Extract the planar inliers from the input cloud
+            //     pcl::ExtractIndices<pcl::PointXYZ> extract;
+            //     extract.setInputCloud (cloud_filtered);
+            //     extract.setIndices (inliers);
+            //     extract.setNegative (false);
+
+            //     // Get the points associated with the planar surface
+            //     extract.filter (*cloud_plane);
+            //     std::cout << "PointCloud representing the planar component: " << cloud_plane->size () << " data points." << std::endl;
+
+            //     // Remove the planar inliers, extract the rest
+            //     extract.setNegative (true);
+            //     extract.filter (*cloud_f);
+            //     *cloud_filtered = *cloud_f;
+            // }
+
+            // // Creating the KdTree object for the search method of the extraction
+            // pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+            // tree->setInputCloud (cloud_filtered);
+
+            // std::vector<pcl::PointIndices> cluster_indices;
+            // pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+            // ec.setClusterTolerance (0.02); // 2cm
+            // ec.setMinClusterSize (100);
+            // ec.setMaxClusterSize (25000);
+            // ec.setSearchMethod (tree);
+            // ec.setInputCloud (cloud_filtered);
+            // ec.extract (cluster_indices);
+
+            // int j = 0;
+            // for (const auto& cluster : cluster_indices)
+            // {
+            //     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
+            //     for (const auto& idx : cluster.indices) {
+            //     cloud_cluster->push_back((*cloud_filtered)[idx]);
+            //     } //*
+            //     cloud_cluster->width = cloud_cluster->size ();
+            //     cloud_cluster->height = 1;
+            //     cloud_cluster->is_dense = true;
+
+            //     std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size () << " data points." << std::endl;
+            //     std::stringstream ss;
+            //     ss << std::setw(4) << std::setfill('0') << j;
+            //     writer.write<pcl::PointXYZ> ("cloud_cluster_" + ss.str () + ".pcd", *cloud_cluster, false); //*
+            //     j++;
+            // }
+
+
+
 
 
         // TODO: Convert to detections later
         // vision_msgs::msg::Detection3DArray detections;
         // publisher_detections_->publish(detections);
+
+        // TODO: Refactor postproc into separate file
+            return 0;
     }
 };
 
