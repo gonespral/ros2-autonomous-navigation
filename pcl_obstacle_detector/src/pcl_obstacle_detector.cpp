@@ -51,19 +51,44 @@ class PCLNode: public rclcpp::Node {
     private:
         rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_point_cloud;
         rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr publisher_detections;
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
 
         // Define callback functions
-        void callback_point_cloud(sensor_msgs::msg::PointCloud2::UniquePtr msg) {
-            RCLCPP_INFO(
-                this->get_logger(),
-                "Received PointCloud2: frame_id='%s', width=%u, height=%u, fields=%zu",
-                msg->header.frame_id.c_str(),
-                msg->width,
-                msg->height,
-                msg->fields.size()
-            );
-        };
+        void callback_point_cloud(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
+            // RCLCPP_INFO(
+            //     this->get_logger(),
+            //     "Received PointCloud2: frame_id='%s', width=%u, height=%u, fields=%zu",
+            //     msg->header.frame_id.c_str(),
+            //     msg->width,
+            //     msg->height,
+            //     msg->fields.size()
+            // );
+
+            // Declare cloud pariables
+            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>);
+
+            // Convert from sensor_msgs::msg::PointCloud2 to pcl::PointCloud
+            pcl::fromROSMsg(*msg, *cloud);  // msg -> cloud
+
+            RCLCPP_INFO(this->get_logger(), "Raw point cloud size: %zu", cloud->size());
+
+            // Remove NaN points
+            std::vector<int> indices;
+            pcl::removeNaNFromPointCloud(*cloud, *cloud, indices); // cloud -> cloud
+
+            // Filter points too high
+            pcl::PassThrough<pcl::PointXYZ> pass;
+            pass.setInputCloud(cloud);
+            pass.setFilterFieldName("z");  // filter axis
+            pass.setFilterLimits(0.1, 3.0); // keep points between 0.1m and 0.3m
+            pass.filter(*cloud_filtered);  // store in cloud_filtered
+
+            RCLCPP_INFO(this->get_logger(), "Filtered point cloud size: %zu", cloud->size());
+
+        // TODO: Convert to detections later
+        // vision_msgs::msg::Detection3DArray detections;
+        // publisher_detections_->publish(detections);
+    }
 };
 
 int main(int argc, char *argv[]){

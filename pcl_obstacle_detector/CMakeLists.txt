@@ -17,8 +17,12 @@ find_package(vision_msgs REQUIRED)
 find_package(mirte_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(pcl_ros REQUIRED)
+find_package(PCL REQUIRED)
 
-include_directories(include)
+include_directories(
+  include
+  ${PCL_INCLUDE_DIRS}
+)
 
 add_executable(pcl_obstacle_detector
   src/pcl_obstacle_detector.cpp
@@ -31,7 +35,8 @@ ament_target_dependencies(pcl_obstacle_detector
   vision_msgs
   mirte_msgs
   std_msgs
-  pcl_ros
+  pcl_conversions
+  PCL
 )
 
 install(TARGETS
