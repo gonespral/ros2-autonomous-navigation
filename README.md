@@ -12,6 +12,10 @@ Course: RO47003 - Robot Software Practicals 2025-2026, TU Delft
 ## Setting up ROS Workspace
 
 ```
+source /opt/ros/humble/setup.bash
+```
+
+```
 mkdir -p ~/fa_ws/src && cd ~/fa_ws/src
 ```
 
@@ -23,6 +27,35 @@ git clone git@gitlab.ro47003.me.tudelft.nl:students-2526/lab4/group88.git
 git clone git@gitlab.ro47003.me.tudelft.nl:students-2526/ro47003_mirte_simulator.git
 ```
 
+```
+cd .. && rosdep install -i --from-path src --rosdistro humble -y
+```
+
+```
+colcon build --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo.
+```
+
+```
+source install/setup.bash
+```
+
+```
+colcon list
+```
+
+```
+ros2 launch mirte_gazebo rsp_lab4.launch.xml gui:=true
+```
+
+### Creating `pcl_obstacle_detector` Package 
+
+```
+cd src/group88/
+```
+
+```
+ros2 pkg create --build-type ament_cmake --license Apache-2.0 pcl_obstacle_detector
+```
 
 
 
