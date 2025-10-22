@@ -16,6 +16,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(vision_msgs REQUIRED)
 find_package(mirte_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(pcl_ros REQUIRED)
 
 include_directories(include)
 
@@ -30,6 +31,7 @@ ament_target_dependencies(pcl_obstacle_detector
   vision_msgs
   mirte_msgs
   std_msgs
+  pcl_ros
 )
 
 install(TARGETS
