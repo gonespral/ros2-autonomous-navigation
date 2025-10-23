@@ -10,5 +10,6 @@
 #include <vision_msgs/msg/detection3_d_array.hpp>
 #include <vision_msgs/msg/detection2_d.hpp>
 #include <vision_msgs/msg/detection2_d_array.hpp>
+#include <geometry_msgs/msg/twist.hpp>
 
 #endif
