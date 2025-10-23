@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Include the rsp_lab4 launch file -->
+    <include file="$(find-pkg-share mirte_gazebo)/launch/rsp_lab4.launch.xml">
+        <arg name="gui" value="true"/>
+    </include>
+
+    <!-- Launch the PCL obstacle detector node -->
+    <node pkg="pcl_obstacle_detector" exec="pcl_obstacle_detector" name="pcl_obstacle_detector_node" output="screen"/>
+
+    <!-- Launch the control barrel world node with parameters -->
+    <node pkg="control_barrel_world" exec="control_barrel_world" name="control_barrel_world_node" output="screen"/>
+</launch>

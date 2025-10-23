@@ -47,15 +47,6 @@ colcon list
 ros2 launch mirte_gazebo rsp_lab4.launch.xml gui:=true
 ```
 
-### Creating `pcl_obstacle_detector` Package 
-
-```
-cd src/group88/
-```
-
-```
-ros2 pkg create --build-type ament_cmake --license Apache-2.0 pcl_obstacle_detector
-```
 
 
 
