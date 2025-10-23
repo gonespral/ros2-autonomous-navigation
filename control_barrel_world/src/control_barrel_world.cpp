@@ -7,6 +7,10 @@ class CBWNode: public rclcpp::Node {
         CBWNode(): Node("control_barrel_world_node")
         {
 
+            // Initialize TF buffer and listener
+            tf_buffer = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+            tf_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
+
             // Get node args and set defaults
             this->declare_parameter("pedestrians_topic", "/pedestrians");  // vision_msgs/msg/Detection2DArray
             this->declare_parameter("detections_topic", "/detections");  // vision_msgs/msg/Detection3DArray
@@ -16,7 +20,7 @@ class CBWNode: public rclcpp::Node {
             this->declare_parameter("detection_radius", 0.7);
             this->declare_parameter("pedestrian_area_thresh", 20000.0);
             this->declare_parameter("linear_speed", 0.17);
-            this->declare_parameter("angular_speed", 0.3);
+            this->declare_parameter("angular_speed", 0.6);
 
             // Read parameter values into class members
             pedestrians_topic = this->get_parameter("pedestrians_topic").as_string();
@@ -96,6 +100,10 @@ class CBWNode: public rclcpp::Node {
         // Declare timer
         rclcpp::TimerBase::SharedPtr timer;
 
+        // TF buffer and listener
+        std::shared_ptr<tf2_ros::Buffer> tf_buffer;
+        std::shared_ptr<tf2_ros::TransformListener> tf_listener;
+
         // Define callback function for logging
         int callback_pededstrians(const vision_msgs::msg::Detection2DArray::UniquePtr msg) {
             // RCLCPP_INFO(this->get_logger(), "PED - Received %zu pedestrian detections", msg->detections.size());
@@ -104,8 +112,34 @@ class CBWNode: public rclcpp::Node {
         }
 
         int callback_detections(const vision_msgs::msg::Detection3DArray::UniquePtr msg) {
-            // RCLCPP_INFO(this->get_logger(), "DET - Received %zu 3D detections", msg->detections.size());
+            // Store latest detections
             latest_detections = msg->detections;
+
+            // Lookup transform from detections frame to base_link first
+            geometry_msgs::msg::TransformStamped transform_stamped;
+            try {
+                transform_stamped = tf_buffer->lookupTransform(
+                    "base_link",
+                    msg->header.frame_id,
+                    tf2::TimePointZero);
+            } catch (const tf2::TransformException &ex) {
+                RCLCPP_WARN(this->get_logger(), "Could not transform: %s", ex.what());
+                return 0;
+            }
+
+            // Transform each detection position into base_link and store back into latest_detections
+            for (auto &det : latest_detections) {
+                geometry_msgs::msg::PointStamped pos_in;
+                geometry_msgs::msg::PointStamped pos_out;
+                pos_in.header.frame_id = msg->header.frame_id;
+                pos_in.header.stamp = msg->header.stamp;
+                pos_in.point = det.bbox.center.position;
+
+                tf2::doTransform(pos_in, pos_out, transform_stamped);
+
+                det.bbox.center.position = pos_out.point;
+            }
+
             return 0;
         }
 
@@ -172,7 +206,7 @@ class CBWNode: public rclcpp::Node {
             switch(action) {
                 case 0:
                     // left
-                    twist_msg.linear.x = linear_speed*0.1;
+                    twist_msg.linear.x = linear_speed;
                     twist_msg.angular.z = angular_speed;
                     RCLCPP_INFO(this->get_logger(), "Driving left");
                     break;
@@ -184,7 +218,7 @@ class CBWNode: public rclcpp::Node {
                     break;
                 case 2: 
                     // right
-                    twist_msg.linear.x = linear_speed*0.1;
+                    twist_msg.linear.x = linear_speed;
                     twist_msg.angular.z = -angular_speed;
                     RCLCPP_INFO(this->get_logger(), "Driving right");
                     break;
