@@ -10,6 +10,37 @@ find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(vision_msgs REQUIRED)
+find_package(mirte_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+
+include_directories(
+  include
+)
+
+add_executable(control_barrel_world
+  src/control_barrel_world.cpp
+)
+
+ament_target_dependencies(control_barrel_world
+  rclcpp
+  geometry_msgs
+  sensor_msgs
+  vision_msgs
+  mirte_msgs
+  std_msgs
+)
+
+install(TARGETS
+  control_barrel_world
+  DESTINATION lib/${PROJECT_NAME})
+
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

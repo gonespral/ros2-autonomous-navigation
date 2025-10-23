@@ -3,7 +3,7 @@
 <package format="3">
   <name>control_barrel_world</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Contains control node to control mirte based on sensor outputs.</description>
   <maintainer email="G.FernandezNespralVaz-1@student.tudelft.nl">gonespral</maintainer>
   <license>Apache-2.0</license>
 
@@ -11,6 +11,13 @@
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+
+  <depend>rclcpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>vision_msgs</depend>
+  <depend>mirte_msgs</depend>
+  <depend>std_msgs</depend>  
 
   <export>
     <build_type>ament_cmake</build_type>
