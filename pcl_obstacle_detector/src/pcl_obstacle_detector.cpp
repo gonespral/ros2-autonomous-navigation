@@ -14,6 +14,7 @@ class PCLNode: public rclcpp::Node {
             this->declare_parameter("filter_limit_l", 0.1);
             this->declare_parameter("filter_limit_u", 3.0);
             this->declare_parameter("segmentation_thresh", 0.01);
+            this->declare_parameter("downsample_tolerance", 0.01);
             this->declare_parameter("cluster_tolerance", 0.01);
             this->declare_parameter("cluster_size_min", 5);
             this->declare_parameter("cluster_size_max", 25000);
@@ -26,6 +27,7 @@ class PCLNode: public rclcpp::Node {
             filter_limit_l = this->get_parameter("filter_limit_l").as_double();
             filter_limit_u = this->get_parameter("filter_limit_u").as_double();
             segmentation_thresh = this->get_parameter("segmentation_thresh").as_double();
+            segmentation_thresh = this->get_parameter("downsample_tolerance").as_double();
             cluster_tolerance = this->get_parameter("cluster_tolerance").as_double();
             cluster_size_min = this->get_parameter("cluster_size_min").as_int();
             cluster_size_max = this->get_parameter("cluster_size_max").as_int();
@@ -61,10 +63,6 @@ class PCLNode: public rclcpp::Node {
         };
 
     private:
-        // Declare subscriber and publisher
-        rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_point_cloud;
-        rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr publisher_detections;
-
         // Declare node configuration parameters - parameters stored as class members
         std::string point_cloud_topic;
         std::string detections_topic;
@@ -73,14 +71,19 @@ class PCLNode: public rclcpp::Node {
         double filter_limit_l;
         double filter_limit_u;
         double segmentation_thresh;
+        double downsample_tolerance;
         double cluster_tolerance;
         int cluster_size_min;
         int cluster_size_max;
 
-        // Define callback functions
+        // Declare subscriber and publisher
+        rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_point_cloud;
+        rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr publisher_detections;
+
+        // Define callback function - process point cloud
         int callback_point_cloud(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
 
-            // Declare cloud pariables
+            // Declare cloud variables
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>);
 
@@ -89,6 +92,9 @@ class PCLNode: public rclcpp::Node {
 
             RCLCPP_INFO(this->get_logger(), "RAW CLOUD - Raw point cloud size: %zu", cloud->size());
 
+            // -- 1. Pre-Process (Filter) Point Cloud --
+            // https://pcl.readthedocs.io/projects/tutorials/en/master/passthrough.html
+            
             // Remove NaN points
             std::vector<int> indices;
             pcl::removeNaNFromPointCloud(*cloud, *cloud, indices); // cloud -> cloud
@@ -102,9 +108,13 @@ class PCLNode: public rclcpp::Node {
 
             RCLCPP_INFO(this->get_logger(), "FILTERING - Filtered point cloud size: %zu", cloud->size());
 
+            // -- 2. Ground Plane Removal --
+            // https://pcl.readthedocs.io/projects/tutorials/en/master/planar_segmentation.html
+            // https://pcl.readthedocs.io/projects/tutorials/en/master/extract_indices.html#extract-indices
+
             // Ground plane removal
-            pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-            pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
+            pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+            pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
 
             // Create the segmentation object
             pcl::SACSegmentation<pcl::PointXYZ> seg;
@@ -115,7 +125,7 @@ class PCLNode: public rclcpp::Node {
             // Mandatory
             seg.setModelType(pcl::SACMODEL_PLANE);
             seg.setMethodType(pcl::SAC_RANSAC);
-            seg.setDistanceThreshold(0.01);
+            seg.setDistanceThreshold(this->segmentation_thresh);
 
             seg.setInputCloud(cloud_filtered);
             seg.segment(*inliers, *coefficients);
@@ -126,95 +136,98 @@ class PCLNode: public rclcpp::Node {
             }
 
             RCLCPP_INFO(this->get_logger(), "GROUND SEGMENTATION - Plane inliers size: %zu", inliers->indices.size());
-            
+
+            // Before filtering, extract the ground plane
+            pcl::ExtractIndices<pcl::PointXYZ> extract;
+            extract.setInputCloud(cloud_filtered);  // give it value, not reference
+            extract.setIndices(inliers);
+            extract.setNegative(true);  // true to keep points that are not part of ground plane
+            extract.filter(*cloud_filtered);  // now we have an updated cloud_filtered without ground plane
+
+            RCLCPP_INFO(this->get_logger(), "GROUND SEGMENTATION - Filtered point cloud size: %zu", cloud_filtered->size());
+
+            // -- 3. Euclidian Cluster Extraction --
+            // https://pcl.readthedocs.io/projects/tutorials/en/master/cluster_extraction.html
+            // https://pcl.readthedocs.io/projects/tutorials/en/master/voxel_grid.html#downsampling-a-pointcloud-using-a-voxelgrid-filter
         
-            // // Create the filtering object: downsample the dataset using a leaf size of 1cm
+            // Downsample using voxel grid
             // pcl::VoxelGrid<pcl::PointXYZ> vg;
-            // vg.setInputCloud (cloud);
-            // vg.setLeafSize (0.01f, 0.01f, 0.01f);
-            // vg.filter (*cloud_filtered);
-            // std::cout << "PointCloud after filtering has: " << cloud_filtered->size ()  << " data points." << std::endl; //*
+            // vg.setInputCloud(cloud_filtered);  // take value of cloud_filtered
+            // vg.setLeafSize(0.01f, 0.01f, 0.01f);
+            // vg.filter(*cloud_filtered);
 
-            // // Create the segmentation object for the planar model and set all the parameters
-            // pcl::SACSegmentation<pcl::PointXYZ> seg;
-            // pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
-            // pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-            // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane (new pcl::PointCloud<pcl::PointXYZ> ());
-            // pcl::PCDWriter writer;
-            // seg.setOptimizeCoefficients (true);
-            // seg.setModelType (pcl::SACMODEL_PLANE);
-            // seg.setMethodType (pcl::SAC_RANSAC);
-            // seg.setMaxIterations (100);
-            // seg.setDistanceThreshold (0.02);
+            // RCLCPP_INFO(this->get_logger(), "VOXEL GRID DOWNSAMPLE - Filtered point cloud size: %zu", cloud_filtered->size());
+        
+            // Create the segmentation object for the planar model and set all the parameters
 
-            // int nr_points = (int) cloud_filtered->size ();
-            // while (cloud_filtered->size () > 0.3 * nr_points)
-            // {
-            //     // Segment the largest planar component from the remaining cloud
-            //     seg.setInputCloud (cloud_filtered);
-            //     seg.segment (*inliers, *coefficients);
-            //     if (inliers->indices.size () == 0)
-            //     {
-            //     std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
-            //     break;
-            //     }
+            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
+            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane(new pcl::PointCloud<pcl::PointXYZ> ());
 
-            //     // Extract the planar inliers from the input cloud
-            //     pcl::ExtractIndices<pcl::PointXYZ> extract;
-            //     extract.setInputCloud (cloud_filtered);
-            //     extract.setIndices (inliers);
-            //     extract.setNegative (false);
+            // Creating the KdTree object for the search method of the extraction
+            pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);  // create new tree
+            tree->setInputCloud(cloud_filtered);
 
-            //     // Get the points associated with the planar surface
-            //     extract.filter (*cloud_plane);
-            //     std::cout << "PointCloud representing the planar component: " << cloud_plane->size () << " data points." << std::endl;
+            std::vector<pcl::PointIndices> cluster_indices;
+            pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+            ec.setClusterTolerance(this->cluster_tolerance);
+            ec.setMinClusterSize(this->cluster_size_min);
+            ec.setMaxClusterSize(this->cluster_size_max);
+            ec.setSearchMethod(tree);
+            ec.setInputCloud(cloud_filtered);
+            ec.extract(cluster_indices);
 
-            //     // Remove the planar inliers, extract the rest
-            //     extract.setNegative (true);
-            //     extract.filter (*cloud_f);
-            //     *cloud_filtered = *cloud_f;
-            // }
+            vision_msgs::msg::Detection3DArray detections;
+            detections.header = msg->header;
 
-            // // Creating the KdTree object for the search method of the extraction
-            // pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
-            // tree->setInputCloud (cloud_filtered);
+            for (const auto& cluster : cluster_indices) {
+                // Create new cloud_cluster
+                pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
 
-            // std::vector<pcl::PointIndices> cluster_indices;
-            // pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-            // ec.setClusterTolerance (0.02); // 2cm
-            // ec.setMinClusterSize (100);
-            // ec.setMaxClusterSize (25000);
-            // ec.setSearchMethod (tree);
-            // ec.setInputCloud (cloud_filtered);
-            // ec.extract (cluster_indices);
+                // Iterate over cluster indices and append index to cloud_cluster
+                for (const auto& idx : cluster.indices) {
+                    cloud_cluster->push_back((*cloud_filtered)[idx]);
+                } 
 
-            // int j = 0;
-            // for (const auto& cluster : cluster_indices)
-            // {
-            //     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
-            //     for (const auto& idx : cluster.indices) {
-            //     cloud_cluster->push_back((*cloud_filtered)[idx]);
-            //     } //*
-            //     cloud_cluster->width = cloud_cluster->size ();
-            //     cloud_cluster->height = 1;
-            //     cloud_cluster->is_dense = true;
+                // We now have cloud cluster with points corresponding to that cluster
+                cloud_cluster->width = cloud_cluster->size();
+                cloud_cluster->height = 1;
+                cloud_cluster->is_dense = true;
 
-            //     std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size () << " data points." << std::endl;
-            //     std::stringstream ss;
-            //     ss << std::setw(4) << std::setfill('0') << j;
-            //     writer.write<pcl::PointXYZ> ("cloud_cluster_" + ss.str () + ".pcd", *cloud_cluster, false); //*
-            //     j++;
-            // }
+                // We now have clusters in cluster_indices associated with cloud_filtered!
+                // RCLCPP_INFO(this->get_logger(), "CLUSTERING - Cluster point cloud size: %zu", cloud_cluster->size());
 
+                // Compute centroid
+                // compute3DCentroid takes Eigen::Matrix<Scalar, 4, 1> &centroid
+                Eigen::Matrix<double, 4, 1> centroid;  // 4x4 matrix to hold centroid
+                pcl::compute3DCentroid(*cloud_cluster, centroid);
 
+                // Compute maximum and minimum 3D points
+                pcl::PointXYZ min_pt;
+                pcl::PointXYZ max_pt;
+                pcl::getMinMax3D(*cloud_cluster, min_pt, max_pt);
 
+                // Create detection message
+                vision_msgs::msg::Detection3D detection;
+                detection.header = msg->header;
 
+                // Position (center of bbox)
+                detection.bbox.center.position.x = centroid[0];
+                detection.bbox.center.position.y = centroid[1];
+                detection.bbox.center.position.z = centroid[2];
+                detection.bbox.center.orientation.w = 1.0;
 
-        // TODO: Convert to detections later
-        // vision_msgs::msg::Detection3DArray detections;
-        // publisher_detections_->publish(detections);
+                // Size of bounding box (width, height, depth)
+                detection.bbox.size.x = max_pt.x - min_pt.x;
+                detection.bbox.size.y = max_pt.y - min_pt.y;
+                detection.bbox.size.z = max_pt.z - min_pt.z;
 
-        // TODO: Refactor postproc into separate file
+                // Add detection to array
+                detections.detections.push_back(detection);
+            }
+    
+            // Publish detections
+            publisher_detections->publish(detections);
+
             return 0;
     }
 };
