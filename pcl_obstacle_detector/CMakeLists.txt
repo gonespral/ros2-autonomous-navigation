@@ -25,7 +25,10 @@ include_directories(
 )
 
 add_executable(pcl_obstacle_detector
-  src/pcl_obstacle_detector.cpp
+  src/main.cpp
+  src/node.cpp
+  src/callbacks.cpp
+  src/proc.cpp
 )
 
 ament_target_dependencies(pcl_obstacle_detector
