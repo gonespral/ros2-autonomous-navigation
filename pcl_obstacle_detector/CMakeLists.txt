@@ -43,9 +43,9 @@ install(TARGETS
   pcl_obstacle_detector
   DESTINATION lib/${PROJECT_NAME})
 
-install(DIRECTORY launch/
-  DESTINATION share/${PROJECT_NAME}/launch
-)
+# install(DIRECTORY launch/
+#   DESTINATION share/${PROJECT_NAME}/launch
+# )
 
 
 if(BUILD_TESTING)
