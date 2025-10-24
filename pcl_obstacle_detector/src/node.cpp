@@ -1,5 +1,7 @@
 #include "pcl_obstacle_detector/pcl_obstacle_detector.hpp"
 
+
+// Declare node constructor function, inherited class from rclcpp::Node
 PCLNode::PCLNode(): Node("pcl_obstacle_detector_node")
 {
     // Get node args and set defaults

@@ -1,5 +1,6 @@
 #include "pcl_obstacle_detector/pcl_obstacle_detector.hpp"
 
+// Step 1 of processing cloud.
 void PCLNode::preprocessPointCloud(
     const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg,
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
@@ -25,6 +26,7 @@ void PCLNode::preprocessPointCloud(
     RCLCPP_INFO(this->get_logger(), "FILTERING - Filtered point cloud size: %zu", cloud_filtered->size());
 }
 
+// Step 2. of processing cloud
 void PCLNode::removeGroundPlane(
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered
 ) {
@@ -55,6 +57,7 @@ void PCLNode::removeGroundPlane(
     RCLCPP_INFO(this->get_logger(), "GROUND SEGMENTATION - Filtered point cloud size: %zu", cloud_filtered->size());
 }
 
+// Step 3. of processing cloud
 vision_msgs::msg::Detection3DArray PCLNode::euclideanClusterExtraction(
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered, 
     const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg
@@ -77,11 +80,13 @@ vision_msgs::msg::Detection3DArray PCLNode::euclideanClusterExtraction(
     vision_msgs::msg::Detection3DArray detections;
     detections.header = msg->header;
 
+    // Iterate over each cluster
     for (const auto& cluster : cluster_indices) {
-        // Allocate memory to new cloud cluster
+
+        // Allocate memory to create new cloud cluster
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
 
-        // Iterate over cluster indices and append index to cloud_cluster
+        // Iterate over cluster indices and append index to newly created cloud_cluster
         for (const auto& idx : cluster.indices) {
             cloud_cluster->push_back((*cloud_filtered)[idx]);
         }
