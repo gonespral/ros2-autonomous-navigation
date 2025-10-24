@@ -24,7 +24,9 @@ include_directories(
 )
 
 add_executable(control_barrel_world
-  src/control_barrel_world.cpp
+  src/main.cpp
+  src/node.cpp
+  src/callbacks.cpp
 )
 
 ament_target_dependencies(control_barrel_world

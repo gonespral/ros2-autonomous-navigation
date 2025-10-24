@@ -41,12 +41,15 @@ public:
     PCLNode();
 
 private:
+
+    // Declare subscriber and publisher
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_point_cloud;
-    
     rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr publisher_detections;
     
+    // Declare callback function
     int pointCloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
+    // Declare helper processing functions defined in proc.cpp
     void preprocessPointCloud(
         const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg,
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
