@@ -4,7 +4,7 @@
   <name>control_barrel_world</name>
   <version>0.0.0</version>
   <description>Contains control node to control mirte based on sensor outputs.</description>
-  <maintainer email="G.FernandezNespralVaz-1@student.tudelft.nl">gonespral</maintainer>
+  <maintainer email="G.FernandezNespralVaz-1@student.tudelft.nl">Gonçalo Fernández-Nespral Vaz</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

@@ -200,7 +200,7 @@ The interaction between these nodes can be visualized with `rqt_graph`.
 
 ![rqt_graph](media/rosgraph.png "Title")
 
-As can be seen the `/control_barrel_world_node` subscribes to `/pedestrians` and `/detections`, adn then writes to `/mirte/cmd_vel`.
+As can be seen the `/control_barrel_world_node` subscribes to `/pedestrians` and `/detections`, and then writes to `/mirte/cmd_vel`.
 
 Furthermore the `/pcl_obstacle_detector_node` subscribes to `/mirte/camera_depths/points` and writes to `/detections`.
 
