@@ -18,7 +18,7 @@ class CBWNode: public rclcpp::Node {
             this->declare_parameter("publish_interval_ms", 1);
             this->declare_parameter("queue_size", 1);
             this->declare_parameter("detection_radius", 0.7);
-            this->declare_parameter("pedestrian_area_thresh", 20000.0);
+            this->declare_parameter("pedestrian_area_thresh", 2500.0);
             this->declare_parameter("linear_speed", 0.17);
             this->declare_parameter("angular_speed", 0.6);
 

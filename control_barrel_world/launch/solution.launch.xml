@@ -8,6 +8,11 @@
     <!-- Launch the PCL obstacle detector node -->
     <node pkg="pcl_obstacle_detector" exec="pcl_obstacle_detector" name="pcl_obstacle_detector_node" output="screen"/>
 
-    <!-- Launch the control barrel world node with parameters -->
-    <node pkg="control_barrel_world" exec="control_barrel_world" name="control_barrel_world_node" output="screen"/>
+    <!-- Launch the control barrel world nodes -->
+    <node pkg="control_barrel_world" exec="control_barrel_world" name="control_barrel_world_node" output="screen">
+        <param name="publish_interval_ms" value="1"/>
+        <param name="pedestrian_area_thresh" value="2500.0"/>  <!-- Must be a float! -->
+        <param name="linear_speed" value="0.17"/>
+        <param name="angular_speed" value="0.6"/>
+    </node>
 </launch>
